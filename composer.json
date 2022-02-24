@@ -1,0 +1,27 @@
+{
+	"name": "zhh2100/pidan-multi-app",
+	"description": "皮蛋框架多应用模式",
+	"license": "Apache-2.0",
+	"authors": [
+		{
+			"name": "zhh2100",
+			"email": "zhh2100@qq.com"
+		}
+	],
+	"require": {
+		"php": ">=7.1.0"
+	},
+	"autoload": {
+		"psr-4": {
+			"pidan\\app\\": "src"
+		}
+	},
+	"extra": {
+		"pidan":{
+			"services":[
+				"pidan\\app\\Service"
+			]
+		}
+	},    
+	"minimum-stability": "dev"
+}
