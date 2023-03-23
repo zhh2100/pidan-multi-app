@@ -115,7 +115,7 @@ class MultiApp
 				$path = $this->app->request->pathinfo();// index/blog/index
 				$map  = $this->app->config->get('app.app_map', []);//允许的app app_map=>['huotai'=>admin,*=>home,...]   或 ['admin','blog',...] 
 				$deny = $this->app->config->get('app.deny_app_list', []);
-				$name = current(explode('/', $path));//取根路径
+				$name = current(explode('/', $path));//从pathinfo取到的appName
 
 				if (strpos($name, '.')) {
 					$name = strstr($name, '.', true);
@@ -135,7 +135,7 @@ class MultiApp
 					throw new RuntimeException('app not exists:' . $name);
 				} elseif ($name && isset($map['*'])) {
 					$appName = $map['*'];
-				//没取到name或map格式为['admin','blog',...]  通过域名访问就没有pathinfo
+				//没取到$appName或map格式为['admin','blog',...]  通过域名访问就没有pathinfo
 				} else {
 					$appName = $name ?: $defaultApp;
 					$appPath = $this->path ?: $this->app->getBasePath() . $appName . DIRECTORY_SEPARATOR;
@@ -150,7 +150,7 @@ class MultiApp
 						}
 					}
 				}
-				//大约118行  根据访问路径pathinfo取到  设置url的root,  pathinfo去除name只保留   控制器与方法      
+				//大约118行  设置url的root,  pathinfo去除name只保留   控制器与方法
 				if ($name) {
 					$this->app->request->setRoot('/' . $name);
 					$this->app->request->setPathinfo(strpos($path, '/') ? ltrim(strstr($path, '/'), '/') : '');
