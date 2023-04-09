@@ -9,7 +9,7 @@
 		}
 	],
 	"require": {
-		"php": ">=7.1.0"
+		"php": ">=7.1.0",
 		"zhh2100/framework": "v1.1.0"
 	},
 	"autoload": {
