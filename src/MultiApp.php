@@ -18,17 +18,7 @@ class MultiApp
 	/** @var App */
 	protected $app;
 
-	/**
-	 * 应用名称
-	 * @var string
-	 */
-	protected $name;
-
-	/**
-	 * 应用名称
-	 * @var string
-	 */
-	protected $appName;
+	protected $http;
 
 	/**
 	 * 应用路径
@@ -36,11 +26,11 @@ class MultiApp
 	 */
 	protected $path;
 
-	public function __construct(App $app)
+	public function __construct()
 	{
-		$this->app  = $app;
-		$this->name = $this->app->http->getName();
-		$this->path = $this->app->http->getPath();
+		$this->app  = app();
+		$this->http=$this->app->make('http');
+		$this->path = $this->http->getPath();
 	}
 
 	/**
@@ -74,74 +64,80 @@ class MultiApp
 	}
 
 	/**
-	 * 解析多应用
+	 * 解析多应用  注意$name是pathinfo中取的    $appName函数取到的    最好入口文件指定应用，其次通过域名指定
 	 * @return bool
 	 */
 	protected function parseMultiApp(): bool
 	{
-		$defaultApp = $this->app->config->get('app.default_app') ?: 'index';
-		//app('http')->name('应用')指定了应用   或通过入口文件名指定
-		if ($this->name || ( ($scriptName = $this->getScriptName()) && !in_array($scriptName, ['index', 'router', 'pidan']))) {
-			$appName = $this->name ?: $scriptName;
-			$this->app->http->setBind();
-		//没指定再识别
-		} else {
+		$request=$this->app->make('request');
+		$http=$this->http;
+		$defaultApp = app('config')->get('app.default_app') ?: 'index';
+		//http->name('应用')指定应用   或入口文件名指定    不动pathinfo
+		if (($http_name=$http->getName()) || ( ($scriptName = $this->getScriptName()) && !in_array($scriptName, ['index', 'router', 'pidan']))) {
+			$appName = $http_name ?: $scriptName;
+			$http->setBind();
+		}
+		//没指定再识别$name 主要流程就是从pathinfo中取   然后从中去除
+		else{
 			// 自动多应用识别
-			$this->app->http->setBind(false);
 			$appName       = null;
-			$this->appName = '';
 
-			$bind = $this->app->config->get('app.domain_bind', []);
+			$bind = app('config')->get('app.domain_bind', []);
 			//通过域名绑定识别
 			if (!empty($bind)) {
 				// 获取当前子域名
-				$subDomain = $this->app->request->subDomain();
-				$domain    = $this->app->request->host(true);
+				$subDomain = $request->subDomain();
+				$domain    = $request->host(true);
 
 				if (isset($bind[$domain])) {//完整域名
 					$appName = $bind[$domain];
-					$this->app->http->setBind();
+					$http->setBind();
 				} elseif (isset($bind[$subDomain])) {//子域名 a.b.c.com   中a.b
 					$appName = $bind[$subDomain];
-					$this->app->http->setBind();
+					$http->setBind();
 				} elseif (isset($bind['*'])) {//泛域名
 					$appName = $bind['*'];
-					$this->app->http->setBind();
+					$http->setBind();
 				}
 			}
 			
 			//域名没绑定   再通过映射识别
-			if (!$this->app->http->isBind()) {
-				$path = $this->app->request->pathinfo();// index/blog/index
-				$map  = $this->app->config->get('app.app_map', []);//允许的app app_map=>['huotai'=>admin,*=>home,...]   或 ['admin','blog',...] 
-				$deny = $this->app->config->get('app.deny_app_list', []);
+			if (!$http->isBind()) {
+				$path = $request->pathinfo();// index/blog/index
+				$map  = app('config')->get('app.app_map', []);//允许的app app_map=>['index'=>home,*=>home,...]   或 ['admin','blog',...]
+				$deny = app('config')->get('app.deny_app_list', []);
 				$name = current(explode('/', $path));//从pathinfo取到的appName
 
 				if (strpos($name, '.')) {
 					$name = strstr($name, '.', true);
 				}
 				
-				//映射中有 映射这格式[访问到的=>实际应用] [‘home’=>'index','huotai'=>'admin',]
+				//映射中有 映射这格式[访问到的=>实际应用] [‘home’=>'index','user'=>'user',]
 				if (isset($map[$name])) {
 					//通过匿名函数取实际访问的应用
 					if ($map[$name] instanceof Closure) {
 						$result  = call_user_func_array($map[$name], [$this->app]);
 						$appName = $result ?: $name;
-					} else {
+					}
+					else {
 						$appName = $map[$name];
 					}
-				// 从url中取到了name,map格式为['admin','blog',...]中不存在的与禁止的应用    报错，最好入口文件指定应用，其次通过域名指定
-				} elseif ($name && (false===array_search($name, $map) || in_array($name, $deny))) {//map与deny是这格式   ['index','admin','blog']
+
+				}
+				// 从pathinfo中取到了name,map格式为[‘home’=>'index','user'=>'user',]   如果存在映射，上面if已运行（如[‘home’=>'index'）或禁止访问
+				elseif ($name && (false!==array_search($name, $map) || in_array($name, $deny))) {//deny是这格式   ['index','admin','blog']
 					throw new RuntimeException('app not exists:' . $name);
-				} elseif ($name && isset($map['*'])) {
+				}
+				elseif ($name && isset($map['*'])) {
 					$appName = $map['*'];
-				//没取到$appName或map格式为['admin','blog',...]  通过域名访问就没有pathinfo
-				} else {
+					//没取到$appName或map格式为['admin','blog',...]  通过域名访问就没有pathinfo
+				}
+				else {
 					$appName = $name ?: $defaultApp;
 					$appPath = $this->path ?: $this->app->getBasePath() . $appName . DIRECTORY_SEPARATOR;
 
 					if (!is_dir($appPath)) {
-						$express = $this->app->config->get('app.app_express', false);
+						$express = app('config')->get('app.app_express', false);
 						if ($express) {
 							$this->setApp($defaultApp);
 							return true;
@@ -150,10 +146,11 @@ class MultiApp
 						}
 					}
 				}
+
 				//大约118行  设置url的root,  pathinfo去除name只保留   控制器与方法
 				if ($name) {
-					$this->app->request->setRoot('/' . $name);
-					$this->app->request->setPathinfo(strpos($path, '/') ? ltrim(strstr($path, '/'), '/') : '');
+					$request->setRoot('/' . $name);//这是访问的url   http://domain.com/index
+					$request->setPathinfo(strpos($path, '/') ? ltrim(strstr($path, '/'), '/') : '');
 				}
 			}
 		}
@@ -185,18 +182,17 @@ class MultiApp
 	 */
 	protected function setApp(string $appName): void
 	{
-		$this->appName = $appName;
-		$this->app->http->name($appName);
+		$this->http->name($appName);
 
 		$appPath = $this->path ?: $this->app->getBasePath() . $appName . DIRECTORY_SEPARATOR;
 
 		$this->app->setAppPath($appPath);
 		// 设置应用命名空间
-		$this->app->setNamespace($this->app->config->get('app.app_namespace') ?: 'app\\' . $appName);
+		$this->app->setNamespace(app('config')->get('app.app_namespace') ?: 'app\\' . $appName);
 
 		if (is_dir($appPath)) {
 			$this->app->setRuntimePath($this->app->getRuntimePath() . $appName . DIRECTORY_SEPARATOR);
-			$this->app->http->setRoutePath($this->getRoutePath());
+			$this->http->setRoutePath($this->getRoutePath());
 
 			//加载应用
 			$this->loadApp($appName, $appPath);
@@ -215,7 +211,7 @@ class MultiApp
 		}
 
 		if (is_file($appPath.'/config.php')) {
-			$this->app->config->load($appPath.'/config.php');
+			$this->app->make('config')->load($appPath.'/config.php');
 		}
 
 		if (is_file($appPath . 'event.php')) {

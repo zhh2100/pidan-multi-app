@@ -1,6 +1,6 @@
 {
 	"name": "zhh2100/pidan-multi-app",
-	"description": "皮蛋框架多应用模式",
+	"description": "皮蛋框架多应用模式 同步到v1.0.16之后 Commits on Mar 29, 2023",
 	"license": "Apache-2.0",
 	"authors": [
 		{
@@ -10,6 +10,7 @@
 	],
 	"require": {
 		"php": ">=7.1.0"
+		"zhh2100/framework": "v1.1.0"
 	},
 	"autoload": {
 		"psr-4": {
