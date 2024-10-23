@@ -147,10 +147,11 @@ class MultiApp
 					}
 				}
 
-				//大约118行  设置url的root,  pathinfo去除name只保留   控制器与方法
+				//大约118行  设置url的root,  pathinfo去除name=app只保留   控制器与方法
 				if ($name) {
 					$request->setRoot('/' . $name);//这是访问的url   http://domain.com/index
-					$request->setPathinfo(strpos($path, '/') ? ltrim(strstr($path, '/'), '/') : '');
+					//如果存在name=app,去除  留ctrl/act
+					$request->setPathinfo(strpos($path, $name)===false ? $path : ltrim(strstr($path, '/'), '/'));
 				}
 			}
 		}
